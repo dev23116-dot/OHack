@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: fleetflow-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fleetflow}
+      POSTGRES_USER: ${POSTGRES_USER:-fleetflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fleetflow}
+    volumes:
+      - fleetflow-db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fleetflow} -d ${POSTGRES_DB:-fleetflow}"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fleetflow-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-fleetflow}:${POSTGRES_PASSWORD:-fleetflow}@db:5432/${POSTGRES_DB:-fleetflow}
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    command: ["/bin/bash", "/app/scripts/start.sh"]
+
+volumes:
+  fleetflow-db-data:
